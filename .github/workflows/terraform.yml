@@ -64,18 +64,18 @@ jobs:
         shell: bash
 
     env:
-      TF_CLI_ARGS: >
-        -input=false
-        -var 'gcp_project=${{ secrets.gcp_project }}'
-        -var 'gcp_region=${{ secrets.gcp_region }}'
-        -var 'vpc_network_auto_create_subnets=${{ secrets.vpc_network_auto_create_subnets }}'
-        -var 'vpc_network_name=${{ secrets.vpc_network_name }}'
-        -var 'webapp_subnet_name=${{ secrets.webapp_subnet_name }}'
-        -var 'webapp_subnet_cidr=${{ secrets.webapp_subnet_cidr }}'
-        -var 'db_subnet_name=${{ secrets.db_subnet_name }}'
-        -var 'db_subnet_cidr=${{ secrets.db_subnet_cidr }}'
-        -var 'vpc_network_routing_mode=${{ secrets.vpc_network_routing_mode }}'
-        -var 'webapp_route_name=${{ secrets.webapp_route_name }}'
+        TF_CLI_ARGS: >
+          -input=false
+          -var 'gcp_project="cloud6225sneha"}}'
+          -var 'gcp_region="us-east1"'
+          -var 'vpc_network_auto_create_subnets="false"'
+          -var 'vpc_network_name="vpc-main-network"'
+          -var 'webapp_subnet_name="webapp"'
+          -var 'webapp_subnet_cidr="10.0.1.0/24"'
+          -var 'db_subnet_name="db"'
+          -var 'db_subnet_cidr="10.0.2.0/24"'
+          -var 'vpc_network_routing_mode="REGIONAL"'
+          -var 'webapp_route_name="webapp-route"'
 
     steps:
     # Checkout the repository to the GitHub Actions runner
