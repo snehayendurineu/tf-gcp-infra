@@ -63,6 +63,18 @@ jobs:
       run:
         shell: bash
 
+    env:
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      GCP_REGION: ${{ secrets.GCP_REGION }}
+      VPC_NETWORK_AUTO_CREATE_SUBNETS: ${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}
+      VPC_NETWORK_NAME: ${{ secrets.VPC_NETWORK_NAME }}
+      WEBAPP_SUBNET_NAME: ${{ secrets.WEBAPP_SUBNET_NAME }}
+      WEBAPP_SUBNET_CIDR: ${{ secrets.WEBAPP_SUBNET_CIDR }}
+      DB_SUBNET_NAME: ${{ secrets.DB_SUBNET_NAME }}
+      DB_SUBNET_CIDR: ${{ secrets.DB_SUBNET_CIDR }}
+      VPC_NETWORK_ROUTING_MODE: ${{ secrets.VPC_NETWORK_ROUTING_MODE }}
+      WEBAPP_ROUTE_NAME: ${{ secrets.WEBAPP_ROUTE_NAME }}
+
     steps:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
@@ -84,29 +96,10 @@ jobs:
 
     # Generates an execution plan for Terraform
     - name: Terraform Plan
-      run: terraform plan -input=false \
-        -var="gcp_project=${{ secrets.GCP_PROJECT }}" \
-        -var="gcp_region=${{ secrets.GCP_REGION }}" \
-        -var="vpc_network_auto_create_subnets=${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}" \
-        -var="vpc_network_name=${{ secrets.VPC_NETWORK_NAME }}" \
-        -var="webapp_subnet_name=${{ secrets.WEBAPP_SUBNET_NAME }}" \
-        -var="webapp_subnet_cidr=${{ secrets.WEBAPP_SUBNET_CIDR }}" \
-        -var="db_subnet_name=${{ secrets.DB_SUBNET_NAME }}" \
-        -var="db_subnet_cidr=${{ secrets.DB_SUBNET_CIDR }}" \
-        -var="vpc_network_routing_mode=${{ secrets.VPC_NETWORK_ROUTING_MODE }}" \
-        -var="webapp_route_name=${{ secrets.WEBAPP_ROUTE_NAME }}"
+      run: terraform plan -input=false
 
+     # Terraform apply 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false \
-        -var="gcp_project=${{ secrets.GCP_PROJECT }}" \
-        -var="gcp_region=${{ secrets.GCP_REGION }}" \
-        -var="vpc_network_auto_create_subnets=${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}" \
-        -var="vpc_network_name=${{ secrets.VPC_NETWORK_NAME }}" \
-        -var="webapp_subnet_name=${{ secrets.WEBAPP_SUBNET_NAME }}" \
-        -var="webapp_subnet_cidr=${{ secrets.WEBAPP_SUBNET_CIDR }}" \
-        -var="db_subnet_name=${{ secrets.DB_SUBNET_NAME }}" \
-        -var="db_subnet_cidr=${{ secrets.DB_SUBNET_CIDR }}" \
-        -var="vpc_network_routing_mode=${{ secrets.VPC_NETWORK_ROUTING_MODE }}" \
-        -var="webapp_route_name=${{ secrets.WEBAPP_ROUTE_NAME }}"
+      run: terraform apply -auto-approve -input=false
 
