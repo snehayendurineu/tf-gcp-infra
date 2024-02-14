@@ -96,6 +96,15 @@ jobs:
     #- name: Terraform Format
      # run: terraform fmt -check
 
+   # Add more echo statements for other variables
+    - name: Debug Environment Variables
+      run: |
+       echo "GCP_PROJECT: ${{ secrets.gcp_project }}"
+       echo "GCP_REGION: ${{ secrets.gcp_region }}"
+       echo "${{env.TF_CLI_ARGS.gcp_project}}"
+       echo "${{env.TF_CLI_ARGS.gcp_region}}"
+    
+
     # Generates an execution plan for Terraform
     - name: Terraform Plan
       run: terraform plan -input=false ${{ env.TF_CLI_ARGS }}
