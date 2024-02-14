@@ -85,19 +85,28 @@ jobs:
     # Generates an execution plan for Terraform
     - name: Terraform Plan
       run: terraform plan -input=false \
-           -var "gcp_project=${{ secrets.GCP_PROJECT }}" \
-           -var "gcp_region=${{ secrets.GCP_REGION }}" \
-           -var "vpc_network_auto_create_subnets=${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}" \
-           -var "vpc_network_name=${{ secrets.VPC_NETWORK_NAME }}" \
-           -var "webapp_subnet_name=${{ secrets.WEBAPP_SUBNET_NAME }}" \
-           -var "webapp_subnet_cidr=${{ secrets.WEBAPP_SUBNET_CIDR }}" \
-           -var "db_subnet_name=${{ secrets.DB_SUBNET_NAME }}" \
-           -var "db_subnet_cidr=${{ secrets.DB_SUBNET_CIDR }}" \
-           -var "vpc_network_routing_mode=${{ secrets.VPC_NETWORK_ROUTING_MODE }}" \
-           -var "webapp_route_name=${{ secrets.WEBAPP_ROUTE_NAME }}"
+        -var="gcp_project=${{ secrets.GCP_PROJECT }}" \
+        -var="gcp_region=${{ secrets.GCP_REGION }}" \
+        -var="vpc_network_auto_create_subnets=${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}" \
+        -var="vpc_network_name=${{ secrets.VPC_NETWORK_NAME }}" \
+        -var="webapp_subnet_name=${{ secrets.WEBAPP_SUBNET_NAME }}" \
+        -var="webapp_subnet_cidr=${{ secrets.WEBAPP_SUBNET_CIDR }}" \
+        -var="db_subnet_name=${{ secrets.DB_SUBNET_NAME }}" \
+        -var="db_subnet_cidr=${{ secrets.DB_SUBNET_CIDR }}" \
+        -var="vpc_network_routing_mode=${{ secrets.VPC_NETWORK_ROUTING_MODE }}" \
+        -var="webapp_route_name=${{ secrets.WEBAPP_ROUTE_NAME }}"
 
-      # On push to "main", build or change infrastructure according to Terraform configuration files
-      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/"main"' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false \
+        -var="gcp_project=${{ secrets.GCP_PROJECT }}" \
+        -var="gcp_region=${{ secrets.GCP_REGION }}" \
+        -var="vpc_network_auto_create_subnets=${{ secrets.VPC_NETWORK_AUTO_CREATE_SUBNETS }}" \
+        -var="vpc_network_name=${{ secrets.VPC_NETWORK_NAME }}" \
+        -var="webapp_subnet_name=${{ secrets.WEBAPP_SUBNET_NAME }}" \
+        -var="webapp_subnet_cidr=${{ secrets.WEBAPP_SUBNET_CIDR }}" \
+        -var="db_subnet_name=${{ secrets.DB_SUBNET_NAME }}" \
+        -var="db_subnet_cidr=${{ secrets.DB_SUBNET_CIDR }}" \
+        -var="vpc_network_routing_mode=${{ secrets.VPC_NETWORK_ROUTING_MODE }}" \
+        -var="webapp_route_name=${{ secrets.WEBAPP_ROUTE_NAME }}"
+
