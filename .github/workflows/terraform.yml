@@ -63,20 +63,6 @@ jobs:
       run:
         shell: bash
 
-    env:
-        TF_CLI_ARGS: >
-          -input=false
-          -var 'gcp_project="cloud6225sneha"}}'
-          -var 'gcp_region="us-east1"'
-          -var 'vpc_network_auto_create_subnets="false"'
-          -var 'vpc_network_name="vpc-main-network"'
-          -var 'webapp_subnet_name="webapp"'
-          -var 'webapp_subnet_cidr="10.0.1.0/24"'
-          -var 'db_subnet_name="db"'
-          -var 'db_subnet_cidr="10.0.2.0/24"'
-          -var 'vpc_network_routing_mode="REGIONAL"'
-          -var 'webapp_route_name="webapp-route"'
-
     steps:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
@@ -92,25 +78,6 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
-    # Checks that all Terraform configuration files adhere to a canonical format
-    #- name: Terraform Format
-     # run: terraform fmt -check
-
-   # Add more echo statements for other variables
-    - name: Debug Environment Variables
-      run: |
-       echo "GCP_PROJECT: ${{ secrets.gcp_project }}"
-       echo "GCP_REGION: ${{ secrets.gcp_region }}"
-       echo "${{env.TF_CLI_ARGS.gcp_project}}"
-       echo "${{env.TF_CLI_ARGS.gcp_region}}"
-    
-
-    # Generates an execution plan for Terraform
-    - name: Terraform Plan
-      run: terraform plan -input=false ${{ env.TF_CLI_ARGS }}
-
-     # Terraform apply 
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false ${{ env.TF_CLI_ARGS }}
-
+    - name: Terraform Validate
+      run: terraform validate
+  
