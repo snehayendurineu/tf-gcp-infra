@@ -3,6 +3,7 @@ resource "google_compute_network" "vpc_main_network" {
   name = var.vpc_network_name
   auto_create_subnetworks = var.vpc_network_auto_create_subnets
   routing_mode = var.vpc_network_routing_mode
+  delete_default_routes_on_create = var.vpc_network_delete_default_routes
 }
 
 # Create subnet webapp
