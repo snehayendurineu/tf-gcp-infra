@@ -20,3 +20,7 @@ variable "vpc_network_routing_mode" {
 variable "webapp_route_name" {
   
 }
+
+variable "vpc_network_delete_default_routes" {
+  
+}
