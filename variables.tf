@@ -40,3 +40,8 @@ variable "zone" {
   type    = string
   default = "us-east1-b"
 }
+
+variable "srv-acct-email" {
+  type    = string
+  default = "pkr-serv-acct@cloud6225-dev.iam.gserviceaccount.com"
+}
