@@ -27,7 +27,7 @@ resource "google_compute_route" "webapp_route" {
   dest_range       = "0.0.0.0/0"
   next_hop_gateway = "default-internet-gateway"
   priority         = 1000
-  depends_on = [ google_compute_subnetwork.webapp_subnet ]
+  depends_on       = [google_compute_subnetwork.webapp_subnet]
 }
 
 resource "google_compute_firewall" "allow_http" {
@@ -40,7 +40,7 @@ resource "google_compute_firewall" "allow_http" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80"]
+    ports    = [var.http_port]
   }
 
   source_ranges = ["0.0.0.0/0"]
@@ -78,13 +78,13 @@ resource "google_compute_instance" "vm-instance-1" {
     }
   }
   network_interface {
-    network = google_compute_network.vpc_main_network.self_link
+    network    = google_compute_network.vpc_main_network.self_link
     subnetwork = google_compute_subnetwork.webapp_subnet.self_link
     access_config {}
   }
 
   service_account {
-    email = "pkr-serv-acct@cloud6225-dev.iam.gserviceaccount.com"
+    email  = var.srv-acct-email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
   //tags = ["http-server"]
