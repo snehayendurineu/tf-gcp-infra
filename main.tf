@@ -1,4 +1,3 @@
-# Create VPC network
 resource "google_compute_network" "vpc_main_network" {
   name                            = var.vpc_network_name
   auto_create_subnetworks         = var.vpc_network_auto_create_subnets
@@ -6,7 +5,6 @@ resource "google_compute_network" "vpc_main_network" {
   delete_default_routes_on_create = var.vpc_network_delete_default_routes
 }
 
-# Create subnet webapp
 resource "google_compute_subnetwork" "webapp_subnet" {
   project       = var.gcp_project
   name          = var.webapp_subnet_name
@@ -14,7 +12,6 @@ resource "google_compute_subnetwork" "webapp_subnet" {
   ip_cidr_range = var.webapp_subnet_cidr
 }
 
-# Create subnet db
 resource "google_compute_subnetwork" "db_subnet" {
   project                  = var.gcp_project
   name                     = var.db_subnet_name
@@ -60,13 +57,39 @@ resource "google_compute_firewall" "reject_ssh" {
   direction = "INGRESS"
   priority  = 65534
   disabled  = false
-  deny {
+  allow {
     protocol = "tcp"
     ports    = ["22"]
   }
 
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["http-server"]
+}
+
+
+resource "google_service_account" "logging_service_account" {
+  account_id                   = "logging-srv-acct"
+  display_name                 = "Logging Service Account"
+  create_ignore_already_exists = true
+  project                      = var.gcp_project
+}
+
+resource "google_project_iam_binding" "project_role_logAdmin" {
+  project = var.gcp_project
+  role    = "roles/logging.admin"
+
+  members = [
+    "serviceAccount:${google_service_account.logging_service_account.email}",
+  ]
+}
+
+resource "google_project_iam_binding" "project_role_Monitoring" {
+  project = var.gcp_project
+  role    = "roles/monitoring.metricWriter"
+
+  members = [
+    "serviceAccount:${google_service_account.logging_service_account.email}",
+  ]
 }
 
 
@@ -102,13 +125,12 @@ resource "google_compute_instance" "vm-instance-1" {
       EOF
   }
   service_account {
-    email  = var.srv-acct-email
-    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    email  = google_service_account.logging_service_account.email
+    scopes = ["cloud-platform"]
   }
   tags = ["http-server"]
 }
 
-// Enable Private Services Access
 resource "google_compute_global_address" "private_service_access_ip" {
   name          = var.private_service_access_ip_name
   address_type  = "INTERNAL"
@@ -159,6 +181,7 @@ resource "google_sql_database_instance" "db_instance" {
     }
     availability_type = var.db-availability-type
   }
+  depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "database" {
@@ -170,4 +193,13 @@ resource "google_sql_user" "users" {
   name     = var.db-user
   instance = google_sql_database_instance.db_instance.name
   password = random_password.password.result
+}
+
+resource "google_dns_record_set" "dns_update" {
+  managed_zone = var.dns_zone
+  name         = var.domain_name
+  type         = "A"
+  rrdatas      = [google_compute_instance.vm-instance-1.network_interface[0].access_config[0].nat_ip]
+  ttl          = 120
+  depends_on   = [google_compute_instance.vm-instance-1]
 }
