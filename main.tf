@@ -195,9 +195,12 @@ resource "google_sql_user" "users" {
   password = random_password.password.result
 }
 
+data "google_dns_managed_zone" "dns_zone" {
+  name = var.dns_zone
+}
 resource "google_dns_record_set" "dns_update" {
   managed_zone = var.dns_zone
-  name         = var.domain_name
+  name         = data.google_dns_managed_zone.dns_zone.dns_name
   type         = "A"
   rrdatas      = [google_compute_instance.vm-instance-1.network_interface[0].access_config[0].nat_ip]
   ttl          = 120

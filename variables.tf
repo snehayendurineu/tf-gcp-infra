@@ -84,9 +84,3 @@ variable "dns_zone" {
   type    = string
   default = "dns-zone-dev"
 }
-
-variable "domain_name" {
-  type    = string
-  default = "snehayenduri.me."
-}
-
