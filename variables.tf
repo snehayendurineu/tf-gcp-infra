@@ -84,3 +84,48 @@ variable "dns_zone" {
   type    = string
   default = "dns-zone-dev"
 }
+
+variable "pubsub_topic_name" {
+  type    = string
+  default = "verify_email"
+}
+
+variable "pubsub_msgretentiondur" {
+  type    = string
+  default = "604800s"
+}
+
+variable "cloud_func_name" {
+  type    = string
+  default = "verify-email-function"
+}
+
+variable "cloud_func_subscription_name" {
+  type    = string
+  default = "cloud-func-subscription"
+}
+
+variable "cloud_func_bucket_name" {
+  type    = string
+  default = "cloud_func_bucket_002859637"
+}
+
+variable "cloud_object_source" {
+  type = string
+  default = "Archive.zip"
+}
+
+variable "cloud_func_entrypoint" {
+  type = string
+  default = "helloPubSub"
+}
+
+variable "cloud_object_name" {
+  type = string
+  default = "objects"
+}
+
+variable "vpc_access_connector_name"{
+  type = string
+  default = "vpc-access-connector"
+}
