@@ -20,7 +20,6 @@ resource "google_compute_subnetwork" "db_subnet" {
   private_ip_google_access = true
 }
 
-# Create route for webapp subnet
 resource "google_compute_route" "webapp_route" {
   project          = var.gcp_project
   name             = var.webapp_route_name
@@ -239,14 +238,14 @@ resource "google_cloudfunctions2_function" "verify_email_cloudfunction" {
     min_instance_count    = 0
     max_instance_count    = 1
     service_account_email = google_service_account.logging_service_account.email
-    vpc_connector = google_vpc_access_connector.vpc_access_connector.self_link
+    vpc_connector         = google_vpc_access_connector.vpc_access_connector.self_link
     environment_variables = {
-      DB_USER=google_sql_user.users.name
-      DB_PASSWORD=random_password.password.result
-      DB_NAME=var.db_name
-      DB_HOST=google_sql_database_instance.db_instance.ip_address.0.ip_address
-      DB_DIALECT="mysql"
-    
+      DB_USER     = google_sql_user.users.name
+      DB_PASSWORD = random_password.password.result
+      DB_NAME     = var.db_name
+      DB_HOST     = google_sql_database_instance.db_instance.ip_address.0.ip_address
+      DB_DIALECT  = "mysql"
+
     }
   }
 
@@ -323,26 +322,6 @@ resource "google_project_iam_binding" "tokenCreator" {
   ]
 }
 
-/*
-resource "google_project_iam_binding" "cloudFunctionadmin" {
-  project = var.gcp_project
-  role    = "roles/cloudfunctions.admin"
-
-  members = [
-    "serviceAccount:${google_service_account.logging_service_account.email}",
-  ]
-}*/
-
-/*
-resource "google_project_iam_binding" "runAdmin" {
-  project = var.gcp_project
-  role    = "roles/run.admin"
-
-  members = [
-    "serviceAccount:${google_service_account.logging_service_account.email}",
-  ]
-}
-*/
 resource "google_project_iam_binding" "pubsubpublisher" {
   project = var.gcp_project
   role    = "roles/pubsub.publisher"
@@ -351,25 +330,6 @@ resource "google_project_iam_binding" "pubsubpublisher" {
     "serviceAccount:${google_service_account.logging_service_account.email}",
   ]
 }
-
-/*
-resource "google_project_iam_binding" "srvAcctUser" {
-  project = var.gcp_project
-  role    = "roles/iam.serviceAccountUser"
-
-  members = [
-    "serviceAccount:${google_service_account.logging_service_account.email}",
-  ]
-}
-
-resource "google_project_iam_binding" "storageadmin" {
-  project = var.gcp_project
-  role    = "roles/storage.admin"
-
-  members = [
-    "serviceAccount:${google_service_account.logging_service_account.email}",
-  ]
-}*/
 
 
 data "google_iam_policy" "subscriptioneditor" {
@@ -385,7 +345,7 @@ resource "google_pubsub_subscription_iam_policy" "editor" {
   subscription = var.cloud_func_subscription_name
   policy_data  = data.google_iam_policy.subscriptioneditor.policy_data
 
-  depends_on = [ google_pubsub_subscription.cloud_func_subscription ]
+  depends_on = [google_pubsub_subscription.cloud_func_subscription]
 }
 
 
@@ -399,8 +359,8 @@ data "google_iam_policy" "pubsubtopicviewer" {
 }
 
 resource "google_pubsub_topic_iam_policy" "policy" {
-  project = google_pubsub_topic.verify_email_pubsubtopic.project
-  topic = google_pubsub_topic.verify_email_pubsubtopic.name
+  project     = google_pubsub_topic.verify_email_pubsubtopic.project
+  topic       = google_pubsub_topic.verify_email_pubsubtopic.name
   policy_data = data.google_iam_policy.pubsubtopicviewer.policy_data
 }
 
@@ -414,15 +374,15 @@ data "google_iam_policy" "cloudFunctionViewer" {
 }
 
 resource "google_cloudfunctions2_function_iam_policy" "policy" {
-  project = google_cloudfunctions2_function.verify_email_cloudfunction.project
-  location = google_cloudfunctions2_function.verify_email_cloudfunction.location
+  project        = google_cloudfunctions2_function.verify_email_cloudfunction.project
+  location       = google_cloudfunctions2_function.verify_email_cloudfunction.location
   cloud_function = google_cloudfunctions2_function.verify_email_cloudfunction.name
-  policy_data = data.google_iam_policy.cloudFunctionViewer.policy_data
+  policy_data    = data.google_iam_policy.cloudFunctionViewer.policy_data
 }
 
 resource "google_vpc_access_connector" "vpc_access_connector" {
-  name    = var.vpc_access_connector_name
-  region  = var.gcp_region
-  network = google_compute_network.vpc_main_network.self_link
+  name          = var.vpc_access_connector_name
+  region        = var.gcp_region
+  network       = google_compute_network.vpc_main_network.self_link
   ip_cidr_range = "10.0.3.0/28"
 }
