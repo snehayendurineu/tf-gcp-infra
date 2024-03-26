@@ -384,5 +384,5 @@ resource "google_vpc_access_connector" "vpc_access_connector" {
   name          = var.vpc_access_connector_name
   region        = var.gcp_region
   network       = google_compute_network.vpc_main_network.self_link
-  ip_cidr_range = "10.0.3.0/28"
+  ip_cidr_range = var.vpc_access_connector_cidr
 }
