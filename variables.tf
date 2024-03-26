@@ -129,3 +129,8 @@ variable "vpc_access_connector_name" {
   type    = string
   default = "vpc-access-connector"
 }
+
+variable "vpc_access_connector_cidr" {
+  type = string
+  default = "10.0.3.0/28"
+}
