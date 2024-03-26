@@ -111,21 +111,21 @@ variable "cloud_func_bucket_name" {
 }
 
 variable "cloud_object_source" {
-  type = string
+  type    = string
   default = "Archive.zip"
 }
 
 variable "cloud_func_entrypoint" {
-  type = string
+  type    = string
   default = "helloPubSub"
 }
 
 variable "cloud_object_name" {
-  type = string
+  type    = string
   default = "objects"
 }
 
-variable "vpc_access_connector_name"{
-  type = string
+variable "vpc_access_connector_name" {
+  type    = string
   default = "vpc-access-connector"
 }
