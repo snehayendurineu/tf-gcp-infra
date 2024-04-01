@@ -20,6 +20,16 @@ resource "google_compute_subnetwork" "db_subnet" {
   private_ip_google_access = true
 }
 
+resource "google_compute_subnetwork" "lb_subnet" {
+  project       = var.gcp_project
+  name          = var.lb_subnet_name
+  network       = google_compute_network.vpc_main_network.self_link
+  ip_cidr_range = var.lb_subnet_cidr
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  role          = "ACTIVE"
+}
+
+
 resource "google_compute_route" "webapp_route" {
   project          = var.gcp_project
   name             = var.webapp_route_name
@@ -29,6 +39,26 @@ resource "google_compute_route" "webapp_route" {
   priority         = 1000
   depends_on       = [google_compute_subnetwork.webapp_subnet]
 }
+
+resource "google_compute_firewall" "accept_https" {
+  project = var.gcp_project
+  name    = "accept-https"
+  network = google_compute_network.vpc_main_network.self_link
+
+  direction = "INGRESS"
+  priority  = 1000
+  disabled  = false
+
+  allow {
+    protocol = "tcp"
+    ports    = ["443"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["http-server"]
+}
+
+
 
 resource "google_compute_firewall" "accept_http" {
   project = var.gcp_project
@@ -44,7 +74,7 @@ resource "google_compute_firewall" "accept_http" {
     ports    = [var.http_port]
   }
 
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = [var.lb_subnet_cidr, "130.211.0.0/22", "35.191.0.0/16"]
   target_tags   = ["http-server"]
 }
 
@@ -91,42 +121,190 @@ resource "google_project_iam_binding" "project_role_Monitoring" {
   ]
 }
 
-resource "google_compute_instance" "vm-instance-1" {
-  name         = "vm-instance-1"
-  machine_type = "e2-medium"
-  zone         = var.zone
+resource "google_compute_region_health_check" "webapp_health_check" {
+  name        = var.webapp_health_check_name
+  description = "Health check via http"
 
-  boot_disk {
-    initialize_params {
-      image = var.cusimage_name
-      size  = 100
-      type  = "pd-balanced"
-    }
+  timeout_sec        = var.health_check_timeout
+  check_interval_sec = var.health_check_interval
+  healthy_threshold  = var.health_check_healthythreshold
+  project            = var.gcp_project
+
+  http_health_check {
+    port         = var.http_port
+    request_path = var.health_check_req_path
+    proxy_header = "NONE"
   }
+
+  log_config {
+    //turn it to false
+    enable = true
+  }
+}
+
+resource "google_compute_region_instance_template" "webapp_instance_template" {
+  name        = var.webapp_instance_template_name
+  description = "This template is used to create app server instances."
+
+  instance_description = "Template for VM instances needed"
+  machine_type         = var.vm_machine_type
+  can_ip_forward       = false
+
+  scheduling {
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
+    provisioning_model  = "STANDARD"
+  }
+  disk {
+    source_image = var.cusimage_name
+    auto_delete  = true
+    boot         = true
+    type         = "pd-balanced"
+    disk_size_gb = 100
+  }
+
+
   network_interface {
     network    = google_compute_network.vpc_main_network.self_link
     subnetwork = google_compute_subnetwork.webapp_subnet.self_link
     access_config {}
   }
+
   metadata = {
     startup-script = <<-EOF
-      #!/bin/bash
-      echo "Password: ${random_password.password.result}" > /home/packer/sample.txt
-      echo "${google_sql_database_instance.db_instance.ip_address.0.ip_address}" >> /home/packer/sample.txt
-      echo "${google_sql_user.users.name}" >> /home/packer/sample.txt
-      echo "${google_sql_database_instance.db_instance.connection_name}" >> /home/packer/sample.txt
-      echo "DB_USER=${google_sql_user.users.name}" > /home/packer/.env
-      echo "DB_PASSWORD=${random_password.password.result}" >> /home/packer/.env
-      echo "DB_NAME=${var.db_name}" >> /home/packer/.env
-      echo "DB_HOST=${google_sql_database_instance.db_instance.ip_address.0.ip_address}" >> /home/packer/.env
-      echo "DB_DIALECT=mysql" >> /home/packer/.env
-      EOF
+        #!/bin/bash
+        echo "Password: ${random_password.password.result}" > /home/packer/sample.txt
+        echo "${google_sql_database_instance.db_instance.ip_address.0.ip_address}" >> /home/packer/sample.txt
+        echo "${google_sql_user.users.name}" >> /home/packer/sample.txt
+        echo "${google_sql_database_instance.db_instance.connection_name}" >> /home/packer/sample.txt
+        echo "DB_USER=${google_sql_user.users.name}" > /home/packer/.env
+        echo "DB_PASSWORD=${random_password.password.result}" >> /home/packer/.env
+        echo "DB_NAME=${var.db_name}" >> /home/packer/.env
+        echo "DB_HOST=${google_sql_database_instance.db_instance.ip_address.0.ip_address}" >> /home/packer/.env
+        echo "DB_DIALECT=mysql" >> /home/packer/.env
+        EOF
   }
   service_account {
     email  = google_service_account.logging_service_account.email
     scopes = ["cloud-platform"]
   }
+
   tags = ["http-server"]
+}
+
+resource "google_compute_region_instance_group_manager" "webapp_instance_group_manager" {
+  name = var.webapp_instance_group_manager_name
+
+  base_instance_name               = "webapp-vm"
+  region                           = var.gcp_region
+  distribution_policy_zones        = [var.zoneb, var.zonec, var.zoned]
+  distribution_policy_target_shape = var.distribution_policy_target_shape
+
+  version {
+    instance_template = google_compute_region_instance_template.webapp_instance_template.self_link
+  }
+
+  target_size = 3
+
+  named_port {
+    name = "http"
+    port = var.http_port
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_region_health_check.webapp_health_check.self_link
+    initial_delay_sec = 300
+  }
+
+  update_policy {
+    minimal_action               = "RESTART"
+    type                         = "OPPORTUNISTIC"
+    instance_redistribution_type = "PROACTIVE"
+    max_unavailable_fixed        = 3
+  }
+
+  instance_lifecycle_policy {
+    force_update_on_repair    = "NO"
+    default_action_on_failure = "REPAIR"
+  }
+
+  depends_on = [google_compute_region_instance_template.webapp_instance_template]
+
+}
+
+resource "google_compute_region_autoscaler" "autoscaler_webapp" {
+  name   = var.autoscaler_webapp_name
+  region = var.gcp_region
+  target = google_compute_region_instance_group_manager.webapp_instance_group_manager.id
+
+  autoscaling_policy {
+    max_replicas    = var.autoscaler_max_rep
+    min_replicas    = var.autoscaler_min_rep
+    cooldown_period = var.autoscaler_cooldown_period
+
+    cpu_utilization {
+      target            = var.autoscaler_cpu_utilization
+      predictive_method = "NONE"
+    }
+    mode = "ON"
+
+  }
+
+
+  depends_on = [google_compute_region_instance_group_manager.webapp_instance_group_manager]
+}
+
+resource "google_compute_region_backend_service" "lb_backend" {
+  name                  = var.lb_backend_name
+  region                = var.gcp_region
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  health_checks         = [google_compute_region_health_check.webapp_health_check.id]
+  protocol              = "HTTP"
+  session_affinity      = "NONE"
+  timeout_sec           = 30
+  log_config {
+    enable = true
+  }
+  backend {
+    group           = google_compute_region_instance_group_manager.webapp_instance_group_manager.instance_group
+    balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
+  }
+}
+
+resource "google_compute_region_url_map" "lb_url_mapping" {
+  name            = var.lb_url_mapping_name
+  region          = var.gcp_region
+  default_service = google_compute_region_backend_service.lb_backend.id
+  depends_on      = [google_compute_region_backend_service.lb_backend]
+}
+
+resource "google_compute_region_ssl_certificate" "lb_ssl" {
+  name        = "lb-ssl"
+  private_key = file("privateKey.key")
+  certificate = file("certificate.crt")
+  region      = var.gcp_region
+}
+resource "google_compute_region_target_https_proxy" "lb_https_proxy" {
+  name             = var.lb_https_proxy_name
+  region           = var.gcp_region
+  url_map          = google_compute_region_url_map.lb_url_mapping.id
+  ssl_certificates = [google_compute_region_ssl_certificate.lb_ssl.id]
+  depends_on       = [google_compute_region_ssl_certificate.lb_ssl]
+}
+
+resource "google_compute_forwarding_rule" "lb_frontend" {
+  name       = var.lb_frontend_name
+  depends_on = [google_compute_subnetwork.lb_subnet]
+  region     = var.gcp_region
+
+  //ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "443"
+  target                = google_compute_region_target_https_proxy.lb_https_proxy.id
+  network               = google_compute_network.vpc_main_network.id
+  //ip_address            = google_compute_address.default.id
+  network_tier = "STANDARD"
 }
 
 resource "google_compute_global_address" "private_service_access_ip" {
@@ -193,16 +371,19 @@ resource "google_sql_user" "users" {
   password = random_password.password.result
 }
 
+
 data "google_dns_managed_zone" "dns_zone" {
   name = var.dns_zone
 }
+
 resource "google_dns_record_set" "dns_update" {
   managed_zone = var.dns_zone
   name         = data.google_dns_managed_zone.dns_zone.dns_name
   type         = "A"
-  rrdatas      = [google_compute_instance.vm-instance-1.network_interface[0].access_config[0].nat_ip]
-  ttl          = 120
-  depends_on   = [google_compute_instance.vm-instance-1]
+  rrdatas      = [google_compute_forwarding_rule.lb_frontend.ip_address]
+  //[google_compute_instance.vm-instance-1.network_interface[0].access_config[0].nat_ip]
+  ttl        = 120
+  depends_on = [google_compute_forwarding_rule.lb_frontend]
 }
 
 
