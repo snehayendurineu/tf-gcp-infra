@@ -14,6 +14,16 @@ variable "webapp_subnet_cidr" {}
 variable "db_subnet_name" {}
 variable "db_subnet_cidr" {}
 
+variable "lb_subnet_name" {
+  type    = string
+  default = "loadbalancer"
+}
+
+variable "lb_subnet_cidr" {
+  type    = string
+  default = "10.0.4.0/24"
+}
+
 variable "vpc_network_routing_mode" {
   type    = string
   default = "REGIONAL"
@@ -38,9 +48,21 @@ variable "cusimage_name" {
 }
 
 
-variable "zone" {
+variable "zoneb" {
   type    = string
   default = "us-east1-b"
+}
+
+
+variable "zonec" {
+  type    = string
+  default = "us-east1-c"
+}
+
+
+variable "zoned" {
+  type    = string
+  default = "us-east1-d"
 }
 
 variable "srv-acct-email" {
@@ -131,6 +153,104 @@ variable "vpc_access_connector_name" {
 }
 
 variable "vpc_access_connector_cidr" {
-  type = string
+  type    = string
   default = "10.0.3.0/28"
+}
+
+variable "webapp_health_check_name" {
+  type    = string
+  default = "webapp-health-check"
+}
+
+variable "health_check_timeout" {
+  type    = number
+  default = 5
+}
+
+variable "health_check_interval" {
+  type    = number
+  default = 5
+}
+
+variable "health_check_healthythreshold" {
+  type    = number
+  default = 2
+}
+
+variable "health_check_unhealthythreshold" {
+  type    = number
+  default = 2
+}
+
+variable "health_check_req_path" {
+  type    = string
+  default = "/healthz"
+}
+
+variable "webapp_instance_template_name" {
+  type    = string
+  default = "webapp-instance-template"
+}
+
+variable "vm_machine_type" {
+  type    = string
+  default = "e2-standard-2"
+  // "e2-medium"
+  //e2-standard-2
+}
+
+variable "webapp_instance_group_manager_name" {
+  type    = string
+  default = "webapp-instance-group-manager"
+}
+
+variable "distribution_policy_target_shape" {
+  type    = string
+  default = "EVEN"
+  //"BALANCED"
+}
+
+variable "autoscaler_webapp_name" {
+  type    = string
+  default = "autoscaler-webapp"
+}
+
+variable "autoscaler_max_rep" {
+  type    = number
+  default = 9
+}
+
+variable "autoscaler_min_rep" {
+  type    = number
+  default = 3
+}
+
+variable "autoscaler_cpu_utilization" {
+  type    = number
+  default = 0.05
+}
+
+variable "autoscaler_cooldown_period" {
+  type    = number
+  default = 60
+}
+
+variable "lb_backend_name" {
+  type    = string
+  default = "lb-backend"
+}
+
+variable "lb_url_mapping_name" {
+  type    = string
+  default = "webapp-loadbalancer"
+}
+
+variable "lb_https_proxy_name" {
+  type    = string
+  default = "lb-https-proxy"
+}
+
+variable "lb_frontend_name" {
+  type    = string
+  default = "lb-frontend"
 }
