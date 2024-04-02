@@ -14,16 +14,6 @@ variable "webapp_subnet_cidr" {}
 variable "db_subnet_name" {}
 variable "db_subnet_cidr" {}
 
-variable "lb_subnet_name" {
-  type    = string
-  default = "loadbalancer"
-}
-
-variable "lb_subnet_cidr" {
-  type    = string
-  default = "10.0.4.0/24"
-}
-
 variable "vpc_network_routing_mode" {
   type    = string
   default = "REGIONAL"
@@ -253,4 +243,9 @@ variable "lb_https_proxy_name" {
 variable "lb_frontend_name" {
   type    = string
   default = "lb-frontend"
+}
+
+variable "lb_ssl_name" {
+  type    = string
+  default = "lb-ssl"
 }

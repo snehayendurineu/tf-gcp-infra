@@ -20,16 +20,6 @@ resource "google_compute_subnetwork" "db_subnet" {
   private_ip_google_access = true
 }
 
-resource "google_compute_subnetwork" "lb_subnet" {
-  project       = var.gcp_project
-  name          = var.lb_subnet_name
-  network       = google_compute_network.vpc_main_network.self_link
-  ip_cidr_range = var.lb_subnet_cidr
-  purpose       = "REGIONAL_MANAGED_PROXY"
-  role          = "ACTIVE"
-}
-
-
 resource "google_compute_route" "webapp_route" {
   project          = var.gcp_project
   name             = var.webapp_route_name
@@ -51,30 +41,10 @@ resource "google_compute_firewall" "accept_https" {
 
   allow {
     protocol = "tcp"
-    ports    = ["443"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["http-server"]
-}
-
-
-
-resource "google_compute_firewall" "accept_http" {
-  project = var.gcp_project
-  name    = "accept-http"
-  network = google_compute_network.vpc_main_network.self_link
-
-  direction = "INGRESS"
-  priority  = 1000
-  disabled  = false
-
-  allow {
-    protocol = "tcp"
     ports    = [var.http_port]
   }
 
-  source_ranges = [var.lb_subnet_cidr, "130.211.0.0/22", "35.191.0.0/16"]
+  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
   target_tags   = ["http-server"]
 }
 
@@ -94,7 +64,6 @@ resource "google_compute_firewall" "reject_ssh" {
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["http-server"]
 }
-
 
 resource "google_service_account" "logging_service_account" {
   account_id                   = "logging-srv-acct"
@@ -121,7 +90,7 @@ resource "google_project_iam_binding" "project_role_Monitoring" {
   ]
 }
 
-resource "google_compute_region_health_check" "webapp_health_check" {
+resource "google_compute_health_check" "webapp_health_check" {
   name        = var.webapp_health_check_name
   description = "Health check via http"
 
@@ -137,12 +106,11 @@ resource "google_compute_region_health_check" "webapp_health_check" {
   }
 
   log_config {
-    //turn it to false
     enable = true
   }
 }
 
-resource "google_compute_region_instance_template" "webapp_instance_template" {
+resource "google_compute_instance_template" "webapp_instance_template" {
   name        = var.webapp_instance_template_name
   description = "This template is used to create app server instances."
 
@@ -192,16 +160,14 @@ resource "google_compute_region_instance_template" "webapp_instance_template" {
   tags = ["http-server"]
 }
 
-resource "google_compute_region_instance_group_manager" "webapp_instance_group_manager" {
+resource "google_compute_instance_group_manager" "webapp_instance_group_manager" {
   name = var.webapp_instance_group_manager_name
 
-  base_instance_name               = "webapp-vm"
-  region                           = var.gcp_region
-  distribution_policy_zones        = [var.zoneb, var.zonec, var.zoned]
-  distribution_policy_target_shape = var.distribution_policy_target_shape
+  base_instance_name = "webapp-vm"
+  zone               = var.zoneb
 
   version {
-    instance_template = google_compute_region_instance_template.webapp_instance_template.self_link
+    instance_template = google_compute_instance_template.webapp_instance_template.self_link
   }
 
   target_size = 3
@@ -212,15 +178,14 @@ resource "google_compute_region_instance_group_manager" "webapp_instance_group_m
   }
 
   auto_healing_policies {
-    health_check      = google_compute_region_health_check.webapp_health_check.self_link
+    health_check      = google_compute_health_check.webapp_health_check.self_link
     initial_delay_sec = 300
   }
 
   update_policy {
-    minimal_action               = "RESTART"
-    type                         = "OPPORTUNISTIC"
-    instance_redistribution_type = "PROACTIVE"
-    max_unavailable_fixed        = 3
+    minimal_action        = "RESTART"
+    type                  = "OPPORTUNISTIC"
+    max_unavailable_fixed = 3
   }
 
   instance_lifecycle_policy {
@@ -228,14 +193,14 @@ resource "google_compute_region_instance_group_manager" "webapp_instance_group_m
     default_action_on_failure = "REPAIR"
   }
 
-  depends_on = [google_compute_region_instance_template.webapp_instance_template]
+  depends_on = [google_compute_instance_template.webapp_instance_template]
 
 }
 
-resource "google_compute_region_autoscaler" "autoscaler_webapp" {
+resource "google_compute_autoscaler" "autoscaler_webapp" {
   name   = var.autoscaler_webapp_name
-  region = var.gcp_region
-  target = google_compute_region_instance_group_manager.webapp_instance_group_manager.id
+  target = google_compute_instance_group_manager.webapp_instance_group_manager.id
+  zone   = var.zoneb
 
   autoscaling_policy {
     max_replicas    = var.autoscaler_max_rep
@@ -251,14 +216,13 @@ resource "google_compute_region_autoscaler" "autoscaler_webapp" {
   }
 
 
-  depends_on = [google_compute_region_instance_group_manager.webapp_instance_group_manager]
+  depends_on = [google_compute_instance_group_manager.webapp_instance_group_manager]
 }
 
-resource "google_compute_region_backend_service" "lb_backend" {
+resource "google_compute_backend_service" "lb_backend" {
   name                  = var.lb_backend_name
-  region                = var.gcp_region
-  load_balancing_scheme = "EXTERNAL_MANAGED"
-  health_checks         = [google_compute_region_health_check.webapp_health_check.id]
+  load_balancing_scheme = "EXTERNAL"
+  health_checks         = [google_compute_health_check.webapp_health_check.id]
   protocol              = "HTTP"
   session_affinity      = "NONE"
   timeout_sec           = 30
@@ -266,45 +230,40 @@ resource "google_compute_region_backend_service" "lb_backend" {
     enable = true
   }
   backend {
-    group           = google_compute_region_instance_group_manager.webapp_instance_group_manager.instance_group
+    group           = google_compute_instance_group_manager.webapp_instance_group_manager.instance_group
     balancing_mode  = "UTILIZATION"
     capacity_scaler = 1.0
   }
 }
 
-resource "google_compute_region_url_map" "lb_url_mapping" {
+resource "google_compute_url_map" "lb_url_mapping" {
   name            = var.lb_url_mapping_name
-  region          = var.gcp_region
-  default_service = google_compute_region_backend_service.lb_backend.id
-  depends_on      = [google_compute_region_backend_service.lb_backend]
+  default_service = google_compute_backend_service.lb_backend.id
+  depends_on      = [google_compute_backend_service.lb_backend]
 }
 
-resource "google_compute_region_ssl_certificate" "lb_ssl" {
-  name        = "lb-ssl"
-  private_key = file("privateKey.key")
-  certificate = file("certificate.crt")
-  region      = var.gcp_region
+resource "google_compute_managed_ssl_certificate" "lb_ssl" {
+  name = var.lb_ssl_name
+
+  managed {
+    domains = ["snehayenduri.me"]
+  }
 }
-resource "google_compute_region_target_https_proxy" "lb_https_proxy" {
+
+resource "google_compute_target_https_proxy" "lb_https_proxy" {
   name             = var.lb_https_proxy_name
-  region           = var.gcp_region
-  url_map          = google_compute_region_url_map.lb_url_mapping.id
-  ssl_certificates = [google_compute_region_ssl_certificate.lb_ssl.id]
-  depends_on       = [google_compute_region_ssl_certificate.lb_ssl]
+  url_map          = google_compute_url_map.lb_url_mapping.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.lb_ssl.id]
+  depends_on       = [google_compute_managed_ssl_certificate.lb_ssl]
 }
 
-resource "google_compute_forwarding_rule" "lb_frontend" {
-  name       = var.lb_frontend_name
-  depends_on = [google_compute_subnetwork.lb_subnet]
-  region     = var.gcp_region
+resource "google_compute_global_forwarding_rule" "lb_frontend" {
+  name = var.lb_frontend_name
 
-  //ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL_MANAGED"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL"
   port_range            = "443"
-  target                = google_compute_region_target_https_proxy.lb_https_proxy.id
-  network               = google_compute_network.vpc_main_network.id
-  //ip_address            = google_compute_address.default.id
-  network_tier = "STANDARD"
+  target                = google_compute_target_https_proxy.lb_https_proxy.id
 }
 
 resource "google_compute_global_address" "private_service_access_ip" {
@@ -380,10 +339,9 @@ resource "google_dns_record_set" "dns_update" {
   managed_zone = var.dns_zone
   name         = data.google_dns_managed_zone.dns_zone.dns_name
   type         = "A"
-  rrdatas      = [google_compute_forwarding_rule.lb_frontend.ip_address]
-  //[google_compute_instance.vm-instance-1.network_interface[0].access_config[0].nat_ip]
-  ttl        = 120
-  depends_on = [google_compute_forwarding_rule.lb_frontend]
+  rrdatas      = [google_compute_global_forwarding_rule.lb_frontend.ip_address]
+  ttl          = 120
+  depends_on   = [google_compute_global_forwarding_rule.lb_frontend]
 }
 
 
