@@ -92,26 +92,6 @@ resource "google_project_iam_binding" "project_role_Monitoring" {
   ]
 }
 
-resource "google_compute_region_health_check" "webapp_health_check" {
-  name        = var.webapp_health_check_name
-  description = "Health check via http"
-
-  timeout_sec        = var.health_check_timeout
-  check_interval_sec = var.health_check_interval
-  healthy_threshold  = var.health_check_healthythreshold
-  project            = var.gcp_project
-
-  http_health_check {
-    port         = var.http_port
-    request_path = var.health_check_req_path
-    proxy_header = "NONE"
-  }
-
-  log_config {
-    enable = true
-  }
-}
-
 resource "google_compute_region_instance_template" "webapp_instance_template" {
   name        = var.webapp_instance_template_name
   description = "This template is used to create app server instances."
@@ -201,7 +181,7 @@ resource "google_compute_region_instance_group_manager" "webapp_instance_group_m
   }
 
   auto_healing_policies {
-    health_check      = google_compute_region_health_check.webapp_health_check.self_link
+    health_check      = google_compute_health_check.webapp_health_check_global.self_link
     initial_delay_sec = 300
   }
 

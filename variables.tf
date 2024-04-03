@@ -147,11 +147,6 @@ variable "vpc_access_connector_cidr" {
   default = "10.0.3.0/28"
 }
 
-variable "webapp_health_check_name" {
-  type    = string
-  default = "webapp-health-check"
-}
-
 variable "health_check_timeout" {
   type    = number
   default = 5
