@@ -20,6 +20,7 @@ resource "google_compute_subnetwork" "db_subnet" {
   private_ip_google_access = true
 }
 
+
 resource "google_compute_route" "webapp_route" {
   project          = var.gcp_project
   name             = var.webapp_route_name
@@ -30,9 +31,9 @@ resource "google_compute_route" "webapp_route" {
   depends_on       = [google_compute_subnetwork.webapp_subnet]
 }
 
-resource "google_compute_firewall" "accept_https" {
+resource "google_compute_firewall" "accept_http" {
   project = var.gcp_project
-  name    = "accept-https"
+  name    = "accept-http"
   network = google_compute_network.vpc_main_network.self_link
 
   direction = "INGRESS"
@@ -65,6 +66,7 @@ resource "google_compute_firewall" "reject_ssh" {
   target_tags   = ["http-server"]
 }
 
+
 resource "google_service_account" "logging_service_account" {
   account_id                   = "logging-srv-acct"
   display_name                 = "Logging Service Account"
@@ -90,7 +92,7 @@ resource "google_project_iam_binding" "project_role_Monitoring" {
   ]
 }
 
-resource "google_compute_health_check" "webapp_health_check" {
+resource "google_compute_region_health_check" "webapp_health_check" {
   name        = var.webapp_health_check_name
   description = "Health check via http"
 
@@ -110,7 +112,7 @@ resource "google_compute_health_check" "webapp_health_check" {
   }
 }
 
-resource "google_compute_instance_template" "webapp_instance_template" {
+resource "google_compute_region_instance_template" "webapp_instance_template" {
   name        = var.webapp_instance_template_name
   description = "This template is used to create app server instances."
 
@@ -160,14 +162,35 @@ resource "google_compute_instance_template" "webapp_instance_template" {
   tags = ["http-server"]
 }
 
-resource "google_compute_instance_group_manager" "webapp_instance_group_manager" {
+resource "google_compute_health_check" "webapp_health_check_global" {
+  name        = var.webapp_health_check_global_name
+  description = "Health check via http"
+
+  timeout_sec        = var.health_check_timeout
+  check_interval_sec = var.health_check_interval
+  healthy_threshold  = var.health_check_healthythreshold
+  project            = var.gcp_project
+
+  http_health_check {
+    port         = var.http_port
+    request_path = var.health_check_req_path
+    proxy_header = "NONE"
+  }
+
+  log_config {
+    enable = true
+  }
+}
+resource "google_compute_region_instance_group_manager" "webapp_instance_group_manager" {
   name = var.webapp_instance_group_manager_name
 
-  base_instance_name = "webapp-vm"
-  zone               = var.zoneb
+  base_instance_name               = "webapp-vm"
+  region                           = var.gcp_region
+  distribution_policy_zones        = [var.zoneb, var.zonec, var.zoned]
+  distribution_policy_target_shape = var.distribution_policy_target_shape
 
   version {
-    instance_template = google_compute_instance_template.webapp_instance_template.self_link
+    instance_template = google_compute_region_instance_template.webapp_instance_template.self_link
   }
 
   target_size = 3
@@ -178,14 +201,15 @@ resource "google_compute_instance_group_manager" "webapp_instance_group_manager"
   }
 
   auto_healing_policies {
-    health_check      = google_compute_health_check.webapp_health_check.self_link
+    health_check      = google_compute_region_health_check.webapp_health_check.self_link
     initial_delay_sec = 300
   }
 
   update_policy {
-    minimal_action        = "RESTART"
-    type                  = "OPPORTUNISTIC"
-    max_unavailable_fixed = 3
+    minimal_action               = "RESTART"
+    type                         = "OPPORTUNISTIC"
+    instance_redistribution_type = "PROACTIVE"
+    max_unavailable_fixed        = 3
   }
 
   instance_lifecycle_policy {
@@ -193,14 +217,14 @@ resource "google_compute_instance_group_manager" "webapp_instance_group_manager"
     default_action_on_failure = "REPAIR"
   }
 
-  depends_on = [google_compute_instance_template.webapp_instance_template]
+  depends_on = [google_compute_region_instance_template.webapp_instance_template]
 
 }
 
-resource "google_compute_autoscaler" "autoscaler_webapp" {
+resource "google_compute_region_autoscaler" "autoscaler_webapp" {
   name   = var.autoscaler_webapp_name
-  target = google_compute_instance_group_manager.webapp_instance_group_manager.id
-  zone   = var.zoneb
+  region = var.gcp_region
+  target = google_compute_region_instance_group_manager.webapp_instance_group_manager.id
 
   autoscaling_policy {
     max_replicas    = var.autoscaler_max_rep
@@ -216,13 +240,13 @@ resource "google_compute_autoscaler" "autoscaler_webapp" {
   }
 
 
-  depends_on = [google_compute_instance_group_manager.webapp_instance_group_manager]
+  depends_on = [google_compute_region_instance_group_manager.webapp_instance_group_manager]
 }
 
 resource "google_compute_backend_service" "lb_backend" {
   name                  = var.lb_backend_name
-  load_balancing_scheme = "EXTERNAL"
-  health_checks         = [google_compute_health_check.webapp_health_check.id]
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  health_checks         = [google_compute_health_check.webapp_health_check_global.id]
   protocol              = "HTTP"
   session_affinity      = "NONE"
   timeout_sec           = 30
@@ -230,7 +254,7 @@ resource "google_compute_backend_service" "lb_backend" {
     enable = true
   }
   backend {
-    group           = google_compute_instance_group_manager.webapp_instance_group_manager.instance_group
+    group           = google_compute_region_instance_group_manager.webapp_instance_group_manager.instance_group
     balancing_mode  = "UTILIZATION"
     capacity_scaler = 1.0
   }
@@ -249,7 +273,6 @@ resource "google_compute_managed_ssl_certificate" "lb_ssl" {
     domains = ["snehayenduri.me"]
   }
 }
-
 resource "google_compute_target_https_proxy" "lb_https_proxy" {
   name             = var.lb_https_proxy_name
   url_map          = google_compute_url_map.lb_url_mapping.id
@@ -261,7 +284,7 @@ resource "google_compute_global_forwarding_rule" "lb_frontend" {
   name = var.lb_frontend_name
 
   ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
   port_range            = "443"
   target                = google_compute_target_https_proxy.lb_https_proxy.id
 }

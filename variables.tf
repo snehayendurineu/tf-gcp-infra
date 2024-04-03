@@ -249,3 +249,8 @@ variable "lb_ssl_name" {
   type    = string
   default = "lb-ssl"
 }
+
+variable "webapp_health_check_global_name" {
+  type    = string
+  default = "webapp-health-check-global"
+}
