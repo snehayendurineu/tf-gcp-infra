@@ -249,3 +249,28 @@ variable "webapp_health_check_global_name" {
   type    = string
   default = "webapp-health-check-global"
 }
+
+variable "webapp_key_ring_name" {
+  type    = string
+  default = "webapp-key-ring"
+}
+
+variable "webapp_key_rotation_period" {
+  type    = string
+  default = "2592000s"
+}
+
+variable "webapp_key_vm_name" {
+  type    = string
+  default = "webapp-key-vm"
+}
+
+variable "webapp_key_sql_name" {
+  type    = string
+  default = "webapp-key-sql"
+}
+
+variable "webapp_key_storage_name" {
+  type    = string
+  default = "webapp-key-storage"
+}
