@@ -92,6 +92,16 @@ resource "google_project_iam_binding" "project_role_Monitoring" {
   ]
 }
 
+resource "google_project_iam_binding" "project_role_KeyEncryption" {
+  project = var.gcp_project
+  role    = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_service_account.logging_service_account.email}",
+  ]
+}
+
+
 resource "google_compute_region_instance_template" "webapp_instance_template" {
   name        = var.webapp_instance_template_name
   description = "This template is used to create app server instances."
@@ -111,6 +121,9 @@ resource "google_compute_region_instance_template" "webapp_instance_template" {
     boot         = true
     type         = "pd-balanced"
     disk_size_gb = 100
+    disk_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.webapp_key_vm.id
+    }
   }
 
 
@@ -140,6 +153,8 @@ resource "google_compute_region_instance_template" "webapp_instance_template" {
   }
 
   tags = ["http-server"]
+
+  depends_on = [google_kms_crypto_key.webapp_key_vm]
 }
 
 resource "google_compute_health_check" "webapp_health_check_global" {
@@ -319,7 +334,9 @@ resource "google_sql_database_instance" "db_instance" {
     }
     availability_type = var.db-availability-type
   }
-  depends_on = [google_service_networking_connection.private_vpc_connection]
+
+  encryption_key_name = google_kms_crypto_key.webapp_key_sql.id
+  depends_on          = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "database" {
@@ -350,7 +367,13 @@ resource "google_dns_record_set" "dns_update" {
 
 resource "google_storage_bucket" "cloud_func_bucket" {
   name     = var.cloud_func_bucket_name
-  location = "US"
+  location = var.gcp_region
+
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.webapp_key_storage.id
+  }
+
+  depends_on = [google_kms_crypto_key.webapp_key_storage]
 }
 
 resource "google_storage_bucket_object" "cloud_func_bucket_obj" {
@@ -527,4 +550,88 @@ resource "google_vpc_access_connector" "vpc_access_connector" {
   region        = var.gcp_region
   network       = google_compute_network.vpc_main_network.self_link
   ip_cidr_range = var.vpc_access_connector_cidr
+}
+
+
+resource "google_kms_key_ring" "webapp_key_ring" {
+  name     = var.webapp_key_ring_name
+  location = var.gcp_region
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+
+resource "google_kms_crypto_key" "webapp_key_vm" {
+  name            = var.webapp_key_vm_name
+  key_ring        = google_kms_key_ring.webapp_key_ring.id
+  rotation_period = var.webapp_key_rotation_period
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  depends_on = [google_kms_key_ring.webapp_key_ring]
+}
+
+resource "google_kms_crypto_key" "webapp_key_sql" {
+  name            = var.webapp_key_sql_name
+  key_ring        = google_kms_key_ring.webapp_key_ring.id
+  rotation_period = var.webapp_key_rotation_period
+
+  lifecycle {
+    prevent_destroy = false
+  }
+  depends_on = [google_kms_key_ring.webapp_key_ring]
+}
+
+resource "google_kms_crypto_key" "webapp_key_storage" {
+  name            = var.webapp_key_storage_name
+  key_ring        = google_kms_key_ring.webapp_key_ring.id
+  rotation_period = var.webapp_key_rotation_period
+
+  lifecycle {
+    prevent_destroy = false
+  }
+  depends_on = [google_kms_key_ring.webapp_key_ring]
+}
+
+resource "google_project_service_identity" "service_account_cloud_sql" {
+  provider = google-beta
+  service  = "sqladmin.googleapis.com"
+  project  = var.gcp_project
+}
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key" {
+  provider      = google-beta
+  crypto_key_id = google_kms_crypto_key.webapp_key_sql.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_project_service_identity.service_account_cloud_sql.email}",
+  ]
+}
+
+data "google_storage_project_service_account" "gcs_account" {
+
+}
+
+
+resource "google_kms_crypto_key_iam_binding" "encrypter_decrypter" {
+  crypto_key_id = google_kms_crypto_key.webapp_key_storage.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = ["serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"]
+
+}
+
+
+data "google_project" "project" {}
+
+resource "google_kms_crypto_key_iam_binding" "vm_encrypter_decrypter" {
+  crypto_key_id = google_kms_crypto_key.webapp_key_vm.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:service-${data.google_project.project.number}@compute-system.iam.gserviceaccount.com",
+  ]
 }
