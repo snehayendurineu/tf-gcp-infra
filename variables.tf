@@ -180,8 +180,6 @@ variable "webapp_instance_template_name" {
 variable "vm_machine_type" {
   type    = string
   default = "e2-standard-2"
-  // "e2-medium"
-  //e2-standard-2
 }
 
 variable "webapp_instance_group_manager_name" {
@@ -192,7 +190,6 @@ variable "webapp_instance_group_manager_name" {
 variable "distribution_policy_target_shape" {
   type    = string
   default = "EVEN"
-  //"BALANCED"
 }
 
 variable "autoscaler_webapp_name" {
@@ -202,7 +199,7 @@ variable "autoscaler_webapp_name" {
 
 variable "autoscaler_max_rep" {
   type    = number
-  default = 9
+  default = 6
 }
 
 variable "autoscaler_min_rep" {
