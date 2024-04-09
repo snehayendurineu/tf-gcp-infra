@@ -4,14 +4,13 @@ on:
   pull_request:
      branches: [ "main" ]
 
-permissions:
-  contents: read
-
+#permissions:
+#  contents: read
+#*/
 jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
-    environment: production
 
     defaults:
       run:

@@ -374,7 +374,7 @@ resource "google_storage_bucket" "cloud_func_bucket" {
     default_kms_key_name = google_kms_crypto_key.webapp_key_storage.id
   }
 
-  depends_on = [google_kms_crypto_key.webapp_key_storage]
+  depends_on = [google_kms_crypto_key.webapp_key_storage, google_kms_crypto_key_iam_binding.encrypter_decrypter]
 }
 
 resource "google_storage_bucket_object" "cloud_func_bucket_obj" {
