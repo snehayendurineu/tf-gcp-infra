@@ -383,6 +383,23 @@ resource "google_storage_bucket_object" "cloud_func_bucket_obj" {
   source = var.cloud_object_source
 }
 
+
+resource "google_service_account" "function_service_account" {
+  account_id                   = "function-srv-acct"
+  display_name                 = "Function Service Account"
+  create_ignore_already_exists = true
+  project                      = var.gcp_project
+}
+
+resource "google_project_iam_binding" "project_role_KeyEncryption1" {
+  project = var.gcp_project
+  role    = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_service_account.function_service_account.email}",
+  ]
+}
+
 resource "google_cloudfunctions2_function" "verify_email_cloudfunction" {
   name        = var.cloud_func_name
   description = "sends verification email for new users"
@@ -403,7 +420,7 @@ resource "google_cloudfunctions2_function" "verify_email_cloudfunction" {
     available_memory      = "128Mi"
     min_instance_count    = 0
     max_instance_count    = 1
-    service_account_email = google_service_account.logging_service_account.email
+    service_account_email = google_service_account.function_service_account.email
     vpc_connector         = google_vpc_access_connector.vpc_access_connector.self_link
     environment_variables = {
       DB_USER     = google_sql_user.users.name
@@ -430,7 +447,7 @@ resource "google_cloudfunctions2_function_iam_member" "invoker" {
   location       = google_cloudfunctions2_function.verify_email_cloudfunction.location
   cloud_function = google_cloudfunctions2_function.verify_email_cloudfunction.name
   role           = "roles/cloudfunctions.invoker"
-  member         = "serviceAccount:${google_service_account.logging_service_account.email}"
+  member         = "serviceAccount:${google_service_account.function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
@@ -438,7 +455,7 @@ resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
   location = google_cloudfunctions2_function.verify_email_cloudfunction.location
   service  = google_cloudfunctions2_function.verify_email_cloudfunction.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.logging_service_account.email}"
+  member   = "serviceAccount:${google_service_account.function_service_account.email}"
 }
 
 resource "google_project_iam_binding" "cloudsql_client" {
@@ -446,7 +463,7 @@ resource "google_project_iam_binding" "cloudsql_client" {
   role    = "roles/cloudsql.client"
 
   members = [
-    "serviceAccount:${google_service_account.logging_service_account.email}",
+    "serviceAccount:${google_service_account.function_service_account.email}",
   ]
 }
 
@@ -495,55 +512,6 @@ resource "google_project_iam_binding" "pubsubpublisher" {
   members = [
     "serviceAccount:${google_service_account.logging_service_account.email}",
   ]
-}
-
-
-data "google_iam_policy" "subscriptioneditor" {
-  binding {
-    role = "roles/editor"
-    members = [
-      "serviceAccount:${google_service_account.logging_service_account.email}",
-    ]
-  }
-}
-
-resource "google_pubsub_subscription_iam_policy" "editor" {
-  subscription = var.cloud_func_subscription_name
-  policy_data  = data.google_iam_policy.subscriptioneditor.policy_data
-
-  depends_on = [google_pubsub_subscription.cloud_func_subscription]
-}
-
-
-data "google_iam_policy" "pubsubtopicviewer" {
-  binding {
-    role = "roles/viewer"
-    members = [
-      "serviceAccount:${google_service_account.logging_service_account.email}",
-    ]
-  }
-}
-
-resource "google_pubsub_topic_iam_policy" "policy" {
-  project     = google_pubsub_topic.verify_email_pubsubtopic.project
-  topic       = google_pubsub_topic.verify_email_pubsubtopic.name
-  policy_data = data.google_iam_policy.pubsubtopicviewer.policy_data
-}
-
-data "google_iam_policy" "cloudFunctionViewer" {
-  binding {
-    role = "roles/viewer"
-    members = [
-      "serviceAccount:${google_service_account.logging_service_account.email}",
-    ]
-  }
-}
-
-resource "google_cloudfunctions2_function_iam_policy" "policy" {
-  project        = google_cloudfunctions2_function.verify_email_cloudfunction.project
-  location       = google_cloudfunctions2_function.verify_email_cloudfunction.location
-  cloud_function = google_cloudfunctions2_function.verify_email_cloudfunction.name
-  policy_data    = data.google_iam_policy.cloudFunctionViewer.policy_data
 }
 
 resource "google_vpc_access_connector" "vpc_access_connector" {
